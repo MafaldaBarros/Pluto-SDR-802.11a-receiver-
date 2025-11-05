@@ -112,10 +112,10 @@ and answers the Week 1 questions from the project guide.
 
 -It:
 
-1)Monitors c[n] to detect when the short training sequence is present.
-2)When c[n] stays above a threshold for ≥ 3 samples, it assumes a frame has started. This ensures the detection is stable and not triggered by noise.
-3)It opens a “valve” and forwards a fixed number of samples to the next blocks.
-4)If no plateau is detected → samples are discarded.
+-1)Monitors c[n] to detect when the short training sequence is present.
+-2)When c[n] stays above a threshold for ≥ 3 samples, it assumes a frame has started. This ensures the detection is stable and not triggered by noise.
+-3)It opens a “valve” and forwards a fixed number of samples to the next blocks.
+-4)If no plateau is detected → samples are discarded.
 -This block does not perform any decoding. Its sole function is to detect the start of a frame and forward the corresponding samples to the next processing stages.
 
 ## Meaning of the Threshold
@@ -124,8 +124,8 @@ Threshold is applied to the normalized autocorrelation:
 
 𝑐[𝑛]=∣𝑎[𝑛]∣ / 𝑝[𝑛]
 
-𝑎[n]: autocorrelation over lag 16
-p[n]: average signal power
+-𝑎[n]: autocorrelation over lag 16
+-p[n]: average signal power
 
 Interpretation:
 - High c[n] → strong repetitive pattern present → likely short preamble.
