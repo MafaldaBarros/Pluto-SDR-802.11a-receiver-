@@ -56,16 +56,22 @@ and answers the Week 1 questions from the project guide.
 ## 🧮 Q3. Work through Section 2.2  
 **a) Identify the blocks that calculate the autocorrelation**  
 - The autocorrelation is computed using the repeated structure of the STS (every 16 samples).  
-- Implemented with a summation block:  
-  \[  a[n] = \sum_{k=0}^{N_{win}-1} s[n+k] \cdot s[n+k+16]^*  \]
+- Implemented with a summation block:
+```math   
+  a[n] = \sum_{k=0}^{N_{win}-1} s[n+k] \cdot s[n+k+16]^* 
+```
 
 **b) Identify the blocks that calculate the power**  
-- Power is calculated over the same window:  
-  \[  p[n] = \sum_{k=0}^{N_{win}-1} |s[n+k]|^2  \]
+- Power is calculated over the same window:
+```math  
+  p[n] = \sum_{k=0}^{N_{win}-1} |s[n+k]|^2 
+```
 
 **c) Try to obtain a graph like Figure 2**  
 - The normalized autocorrelation coefficient is:  
-  \[  c[n] = \frac{|a[n]|}{p[n]}  \]  
+```math  
+    c[n] = \frac{|a[n]|}{p[n]}  
+```
 - A plateau in `c[n]` corresponds to the presence of the STS → this indicates the start of a frame.  
 
 **d) Explore the effect of varying Nwin**  
@@ -135,27 +141,26 @@ The threshold defines how “clear” the repetition must be to consider it a fr
 
 ## Effect of Changing the Threshold
 
-| Threshold Setting | Efeito | Consequência |
-|------------------|--------|--------------|
-| **Demasiado Baixo** | Ruído pode ultrapassar o limiar | **Deteções falsas** → o receptor encaminha amostras que não pertencem a nenhum quadro → falhas no processamento seguinte |
-| **Demasiado Alto** | O pré-âmbulo verdadeiro pode não atingir o limiar | **Quadros não detetados** → redução da probabilidade de deteção |
-| **Ajuste Ótimo** | Apenas o pré-âmbulo curto verdadeiro excede o limiar de forma consistente | **Deteção estável e fiável** do início do quadro |
-
-### Efeito da Dimensão da Janela (`Nwin`) na Deteção do Pré-Âmbulo
-
-| Tamanho da Janela (`Nwin`) | Efeito | Consequência |
-|---------------------------|--------|--------------|
-| **Pequena**               | Menos suavização da autocorrelação | `c[n]` fica mais ruidoso → mais difícil identificar um plateau de forma estável |
-| **Grande**                | Maior suavização da autocorrelação | O plateau torna-se mais “achatado” → deteção fica mais lenta e menos reativa a transições |
-
-### Limitações do Método de Deteção (OFDM Sync Short)
-
-| Limitação | Descrição | Consequência |
-|----------|------------|--------------|
-| **Tamanho máximo do quadro** | O bloco encaminha apenas um número fixo de amostras após detetar o pré-âmbulo curto. | Apenas quadros até um certo tamanho podem ser decodificados; quadros maiores são truncados. |
-| **Quadros próximos podem não ser detetados** | Se um segundo quadro chegar logo após o primeiro (ex.: **CTS** imediatamente após **RTS**), o bloco pode ainda estar a copiar o primeiro. | O segundo quadro pode **não ser detetado** porque o sistema não volta a procurar um novo plateau. |
-| **Suscetível à afinação de parâmetros** | A deteção depende do *threshold* e do tamanho da janela (`Nwin`), que variam com SNR, ganho de RF e multipercurso. | *Threshold* mal ajustado → **falsos positivos** ou **quadros perdidos**. |
-| **Método de deteção não ótimo** | A autocorrelação é eficiente mas menos precisa que *matched filtering*. | A deteção pode falhar em SNR baixo; *matched filtering* seria mais robusto, mas tem maior custo computacional. |
+| Threshold Setting | Effect | Consequence |
+|------------------|--------|-------------|
+| **Too Low**       | Noise may exceed the threshold | **False detections** → the receiver forwards samples that do not belong to any valid frame → later processing fails |
+| **Too High**      | The actual preamble may not exceed the threshold | **Frames are not detected** → reduced detection probability |
+| **Optimal Setting** | Only the true short preamble consistently exceeds the threshold | **Stable and reliable** frame start detection |
 
 
+### Effect of Window Size (`Nwin`) on Preamble Detection
 
+| Window Size (`Nwin`) | Effect | Consequence |
+|----------------------|--------|-------------|
+| **Small**            | Less smoothing of the autocorrelation | `c[n]` becomes noisier → harder to identify a stable plateau |
+| **Large**            | Greater smoothing of the autocorrelation | The plateau becomes flatter → detection reacts more slowly to transitions |
+
+
+### Limitations of the OFDM Sync Short Approach
+
+| Limitation | Description | Consequence |
+|-----------|-------------|-------------|
+| **Fixed frame length** | The block forwards only a fixed number of samples after detecting the short preamble. | Only frames up to that maximum length can be decoded; longer frames are truncated. |
+| **Cannot detect closely spaced frames** | While forwarding samples from one frame, the block does not look for a new plateau. | A following frame that arrives shortly after (e.g., **CTS** after **RTS**) may be missed. |
+| **Parameter sensitivity** | Detection depends on proper threshold tuning and window size (`Nwin`) relative to SNR and channel conditions. | Poor parameter selection may lead to **false detections** or **missed frames**. |
+| **Suboptimal detection method** | Uses autocorrelation instead of matched filtering to reduce computation. | Less robust at low SNR; matched filtering would perform better but requires more processing. |
