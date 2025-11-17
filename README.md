@@ -184,8 +184,72 @@ The threshold defines how “clear” the repetition must be to consider it a fr
      - Applying the correction to each incoming sample by multiplying it with the complex exponential exp(i * n * df)
      - Performing symbol alignment using matched filtering with the long training sequence
 
-The implementation follows the algorithm described by Sourour et al. (reference [13] of the article).
-
 
 - **Which parameters could you vary?**  
+  ( in wiki )
+  
+ # 📡 IEEE 802.11a OFDM Receiver – Week 4 Notes
+ WIKI - MODLEE
+
+ # 📡 IEEE 802.11a OFDM Receiver – Week 5 
  
+## Understand Phase Offset Correction (Section 2.5)
+
+### Why do you need to correct the phase?
+- After the FFT, each subcarrier ideally has a fixed and predictable phase.
+- However, in practice a phase offset appears because:
+
+1. The transmitter and receiver sampling clocks are not perfectly synchronized.
+Even small timing mismatches cause a linear phase rotation across subcarriers.
+
+2. Symbol alignment is never perfectly exact.
+If the FFT window is shifted slightly (even by one sample), the result is a frequency-dependent phase rotation.
+
+- The consequence is:
+
+    - all constellation points (BPSK, QPSK, 16-QAM, etc.) rotate in the complex plane
+    - demodulation errors increase dramatically if this rotation is not removed
+    
+Therefore, the receiver must estimate and correct this phase offset for every OFDM symbol.
+
+### Find the code that estimates the phase offset 
+
+- The phase offset is estimated in the block OFDM Equalize Symbols.
+
+- The algorithm uses the four pilot subcarriers defined by IEEE 802.11.
+- Each pilot subcarrier carries a known BPSK symbol (±1), but the pilot pattern changes with the symbol index.
+
+- The code does:
+1. Extract the four pilot subcarriers from the current OFDM symbol.
+
+2.Compare the received pilot phase with the expected pilot phase.
+
+3. Perform a linear regression over pilot subcarrier indices because the phase offset is linear in frequency.
+
+4. Estimate the slope and intercept of the phase rotation across all subcarriers.
+
+- This slope/intercept pair gives the phase correction function for the entire OFDM symbol.
+
+  ### How are you correcting the phase? (Which values are being changed?)
+
+- The correction is applied directly to the frequency-domain subcarrier symbols after the FFT.
+
+- Let:
+
+  - X[k] = received subcarrier at index k
+
+  - ϕ(k) = estimated phase rotation at that subcarrier
+
+  - X_corr[k] = corrected subcarrier
+
+- The correction is:
+   X_corr[k] = X[k] * exp(-j * ϕ(k))
+- What is being changed?
+
+   - The angle of each complex subcarrier value is rotated back to where it should be.
+   - The magnitude is not changed (only the phase).
+
+- Since ϕ(k) is linear with frequency:
+    ϕ(k) = slope * k + intercept
+- This precisely removes the accumulated phase error across all 48 data subcarriers.
+- After correction, the constellation points lie again on the expected positions, enabling correct demodulation
