@@ -164,3 +164,28 @@ The threshold defines how “clear” the repetition must be to consider it a fr
 | **Cannot detect closely spaced frames** | While forwarding samples from one frame, the block does not look for a new plateau. | A following frame that arrives shortly after (e.g., **CTS** after **RTS**) may be missed. |
 | **Parameter sensitivity** | Detection depends on proper threshold tuning and window size (`Nwin`) relative to SNR and channel conditions. | Poor parameter selection may lead to **false detections** or **missed frames**. |
 | **Suboptimal detection method** | Uses autocorrelation instead of matched filtering to reduce computation. | Less robust at low SNR; matched filtering would perform better but requires more processing. |
+
+
+---
+# 📡 IEEE 802.11a OFDM Receiver – Week 3 Notes
+
+## Understand the OFDM Sync Long block
+
+- The OFDM Sync Long block performs applies frequency offset correction and symbol alignment. This is required because the sender and the receiver might work on slightly different frequencies.
+
+## Understand the algorithm for frequency offset correction
+
+
+- **Where is the frequency offset correction algorithm implemented?**  
+  - The frequency offset correction is implemented inside the GNU Radio block OFDM Sync Long, which is part of the receiver chain described in Section 2.3 of the article.
+  
+  - This block This block operates immediately after frame detection and before the FFT stage and is responsible for:
+     - Estimating the frequency offset between the sender and the receiver, using the short training sequence.
+     - Applying the correction to each incoming sample by multiplying it with the complex exponential exp(i * n * df)
+     - Performing symbol alignment using matched filtering with the long training sequence
+
+The implementation follows the algorithm described by Sourour et al. (reference [13] of the article).
+
+
+- **Which parameters could you vary?**  
+ 
