@@ -253,3 +253,22 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
     ϕ(k) = slope * k + intercept
 - This precisely removes the accumulated phase error across all 48 data subcarriers.
 - After correction, the constellation points lie again on the expected positions, enabling correct demodulation
+
+   # 📡 IEEE 802.11a OFDM Receiver – Week 6
+
+ ## Understand the OFDM Equalize Symbols module 
+### What does it do?
+
+- The OFDM Equalize Symbols block is the first block operating in the frequency domain after the FFT. It performs the following functions:
+
+- Phase offset correction using the four pilot subcarriers.
+
+- Channel magnitude correction (simple equalization based on a sinc-shaped assumption).
+
+- Removal of DC, guard, and pilot subcarriers.
+
+- Extraction of the 48 data subcarriers from the 64-point FFT output.
+
+- Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
+
+- In short, this block “cleans” the FFT output and makes the data symbols ready for decoding.
