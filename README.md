@@ -272,3 +272,29 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 - Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
 
 - In short, this block “cleans” the FFT output and makes the data symbols ready for decoding.
+
+### Why is the implementation limited to deal with BPSK and QPSK modulation?
+
+- The limitation comes from the simplified channel equalization used:
+
+- The current implementation assumes a sinc-shaped magnitude response of the subcarriers.
+
+- This approximation is not accurate enough for constellations where amplitude carries important information (e.g., 16-QAM, 64-QAM).
+
+- Incorrect magnitude equalization would distort these constellations and make decoding unreliable.
+
+- BPSK and QPSK depend mostly on phase, so the simplified equalizer works well enough for them.
+- Higher-order QAM requires more advanced channel estimation, which is not implemented.
+
+ ### Which other functions are performed in this block?
+
+- Besides equalization, the block also:
+
+    - Uses pilot subcarriers to estimate and correct linear phase offset.
+    - Removes non-data carriers (DC, guard bands, pilots).
+    - Normalizes and outputs only the 48 data subcarriers.
+    - Propagates tags such as the symbol index, needed for pilot tracking.
+    - Passes corrected symbols to OFDM Decode Signal for demapping and decoding.
+
+
+
