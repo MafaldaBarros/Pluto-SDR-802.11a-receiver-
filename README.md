@@ -261,15 +261,15 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 
 - The OFDM Equalize Symbols block is the first block operating in the frequency domain after the FFT. It performs the following functions:
 
-- Phase offset correction using the four pilot subcarriers.
+1.- Phase offset correction using the four pilot subcarriers.
 
-- Channel magnitude correction (simple equalization based on a sinc-shaped assumption).
+2.- Channel magnitude correction (simple equalization based on a sinc-shaped assumption).
 
-- Removal of DC, guard, and pilot subcarriers.
+3.- Removal of DC, guard, and pilot subcarriers.
 
-- Extraction of the 48 data subcarriers from the 64-point FFT output.
+4.- Extraction of the 48 data subcarriers from the 64-point FFT output.
 
-- Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
+5.- Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
 
 - In short, this block “cleans” the FFT output and makes the data symbols ready for decoding.
 
