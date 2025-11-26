@@ -221,11 +221,8 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 
 - The code does:
 1. Extract the four pilot subcarriers from the current OFDM symbol.
-
 2.Compare the received pilot phase with the expected pilot phase.
-
 3. Perform a linear regression over pilot subcarrier indices because the phase offset is linear in frequency.
-
 4. Estimate the slope and intercept of the phase rotation across all subcarriers.
 
 - This slope/intercept pair gives the phase correction function for the entire OFDM symbol.
@@ -256,20 +253,15 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 
    # 📡 IEEE 802.11a OFDM Receiver – Week 6
 
- ## Understand the OFDM Equalize Symbols module 
+## Understand the OFDM Equalize Symbols module 
 ### What does it do?
 
-- The OFDM Equalize Symbols block is the first block operating in the frequency domain after the FFT. It performs the following functions:
-
-1.- Phase offset correction using the four pilot subcarriers.
-
-2.- Channel magnitude correction (simple equalization based on a sinc-shaped assumption).
-
-3.- Removal of DC, guard, and pilot subcarriers.
-
-4.- Extraction of the 48 data subcarriers from the 64-point FFT output.
-
-5.- Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
+-The OFDM Equalize Symbols block is the first block operating in the frequency domain after the FFT. It performs the following functions:
+1. Phase offset correction using the four pilot subcarriers.
+2.Channel magnitude correction (simple equalization based on a sinc-shaped assumption).
+3. Removal of DC, guard, and pilot subcarriers.
+4. Extraction of the 48 data subcarriers from the 64-point FFT output.
+5. Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
 
 - In short, this block “cleans” the FFT output and makes the data symbols ready for decoding.
 
@@ -296,5 +288,66 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
     - Propagates tags such as the symbol index, needed for pilot tracking.
     - Passes corrected symbols to OFDM Decode Signal for demapping and decoding.
 
+ ## Work through Section 2.7
 
+# Section 2.7 — Signal Field Decoding 
+# How does an 802.11 frame begin?
+
+-An OFDM frame always starts in this order:
+1.STS – short training sequence used only to detect that a frame is arriving.
+2.LTS – long training sequence used to find the exact start of the symbols.
+3.SIGNAL Field – the first symbol that contains useful information for the receiver.
+4.DATA Field – the MAC header and payload.
+-So, the SIGNAL field is the first symbol that tells the receiver how to read the rest of the frame.
+
+# How do you delimit a frame? (Remembering Computer Networks)
+INCOMPLETE 
+
+# What is the Signal Field?
+
+-The Signal Field is one OFDM symbol transmitted right after the training sequences.
+-It is sent using:
+
+  -BPSK modulation
+
+  -Rate 1/2 convolutional coding
+
+-This is done to make it very robust, since it must be decoded correctly for the frame to be understood.
+-The Signal Field contains:
+
+  -RATE → modulation and coding used for the payload
+
+  -LENGTH → number of bytes in the payload
+
+  -1 parity bit → quick correctness check
+
+  -6 tail bits → flush the convolutional decoder
+
+# Why is this necessary?
+
+-Because the receiver cannot decode the payload unless it knows:
+
+  -the modulation (BPSK/QPSK/QAM)
+
+  -the coding rate
+
+  -the total payload length
+
+-The SIGNAL field conveys the PHY-layer (physical layer) transmission parameters—namely the modulation scheme, convolutional coding rate, and PSDU length—allowing the physical layer to correctly configure its demodulation and decoding pipelines for the subsequent OFDM data symbols.
+
+
+# How is that information encoded?
+The Signal Field consists of 24 bits:
+- 4 bits  → RATE (modulation + coding of the payload)
+- 12 bits → LENGTH (payload size in bytes)
+- 1 bit   → Parity
+- 6 bits  → Tail bits (flush the convolutional encoder)
+
+
+  
+Then:
+1. Convolutionally encoded (rate 1/2), producing 48 coded bits
+2. Interleaved to improve robustness against burst errors
+3. Modulated using BPSK (each bit → +1 or –1)
+4. Mapped onto a single OFDM symbol (48 data subcarriers)
 
