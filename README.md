@@ -293,47 +293,48 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 # Section 2.7 — Signal Field Decoding 
 # How does an 802.11 frame begin?
 
--An OFDM frame always starts in this order:
-1.STS – short training sequence used only to detect that a frame is arriving.
-2.LTS – long training sequence used to find the exact start of the symbols.
-3.SIGNAL Field – the first symbol that contains useful information for the receiver.
-4.DATA Field – the MAC header and payload.
--So, the SIGNAL field is the first symbol that tells the receiver how to read the rest of the frame.
+An 802.11 OFDM frame always starts in this order:
+
+1. **STS** – short training sequence used only to detect that a frame is arriving.  
+2. **LTS** – long training sequence used to find the exact start of the symbols.  
+3. **SIGNAL Field** – the first symbol that contains useful information for the receiver.  
+4. **DATA Field** – the MAC header and payload.
+
+So, the SIGNAL field is the first symbol that tells the receiver how to read the rest of the frame.
 
 # How do you delimit a frame? (Remembering Computer Networks)
 INCOMPLETE 
 
 # What is the Signal Field?
 
--The Signal Field is one OFDM symbol transmitted right after the training sequences.
--It is sent using:
+The Signal Field is one OFDM symbol transmitted right after the training sequences.  
+It is sent using:
 
-  -BPSK modulation
+- **BPSK modulation**
+- **Rate 1/2 convolutional coding**
 
-  -Rate 1/2 convolutional coding
+This makes the Signal Field extremely robust, since it must always be decoded correctly for the frame to be understood.
 
--This is done to make it very robust, since it must be decoded correctly for the frame to be understood.
--The Signal Field contains:
+The Signal Field contains:
 
-  -RATE → modulation and coding used for the payload
+- **RATE** → modulation and coding used for the payload  
+- **LENGTH** → number of bytes in the payload  
+- **1 parity bit** → quick correctness check  
+- **6 tail bits** → flushes the convolutional decoder  
 
-  -LENGTH → number of bytes in the payload
-
-  -1 parity bit → quick correctness check
-
-  -6 tail bits → flush the convolutional decoder
 
 # Why is this necessary?
 
--Because the receiver cannot decode the payload unless it knows:
+The receiver cannot decode the payload unless it knows:
 
-  -the modulation (BPSK/QPSK/QAM)
+- the modulation (BPSK/QPSK/QAM)  
+- the coding rate  
+- the total payload length  
 
-  -the coding rate
-
-  -the total payload length
-
--The SIGNAL field conveys the PHY-layer (physical layer) transmission parameters—namely the modulation scheme, convolutional coding rate, and PSDU length—allowing the physical layer to correctly configure its demodulation and decoding pipelines for the subsequent OFDM data symbols.
+The SIGNAL field conveys the essential PHY-layer transmission parameters —  
+namely the modulation scheme, convolutional coding rate, and PSDU length —  
+allowing the physical layer to correctly configure its demodulation and decoding pipelines  
+for the subsequent OFDM data symbols.
 
 
 # How is that information encoded?
