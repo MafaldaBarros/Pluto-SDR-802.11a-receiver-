@@ -352,3 +352,152 @@ Then:
 3. Modulated using BPSK (each bit → +1 or –1)
 4. Mapped onto a single OFDM symbol (48 data subcarriers)
 
+
+   # 📡 IEEE 802.11a OFDM Receiver – Week 7
+
+## Work through decoding the payload (Section 2.8)
+
+### Which abstract receiver blocks are within the module OFDM Decode MAC?
+
+Before reaching the **OFDM Decode MAC** module, the receiver has already converted the RF waveform into corrected, equalized OFDM data symbols.
+
+Inside this block, the receiver performs the **final digital baseband reconstruction of the payload**.  
+According to Section 2.8 of the article, the *OFDM Decode MAC* module contains the following abstract processing blocks:
+
+#### **Demodulator**
+- Converts each of the **48 constellation points** into **soft bits** based on the modulation scheme (BPSK, QPSK, etc.).
+
+#### **De-interleaver**
+- Reverses the bit permutations applied at the transmitter, according to the **Modulation and Coding Scheme (MCS)**.
+
+#### **Convolutional Decoder + Puncturing Handler**
+- Performs **Viterbi decoding** (using the IT++ library) to correct channel errors and reconstruct punctured bits.
+
+#### **Descrambler**
+- Uses the first **seven bits of the SERVICE field** (which are always zero) to determine the scrambler's initial state and remove the scrambling sequence.
+  
+Together, these operations reconstruct the **original MAC-layer payload** from the equalized OFDM symbols.
+
+---
+### How many constellation symbols are demodulated at once? Why?
+
+The block demodulates **48 constellation symbols at once**, because each OFDM symbol contains:
+
+- 64 total subcarriers  
+  Subtracting:
+  - 4 pilot carriers  
+  - 1 DC carrier  
+  - 11 guard/null carriers  
+
+→ leaves **48 data subcarriers**, each carrying one constellation point.
+
+This number is **defined by the IEEE 802.11a/g/p standard**, so it cannot be freely changed.
+
+
+#### Can this be changed?
+
+Technically yes, one could modify the GNU Radio implementation.  
+However, doing so would **break compliance with the 802.11 standard**, and the receiver would no longer correctly interpret WiFi frames.
+
+#### Impact of changing the number of demodulated carriers
+
+- Demodulation would no longer match the transmitter's OFDM structure.  
+- De-interleaving and Viterbi decoding would receive the wrong number of bits.  
+- Descrambling would fail since the bitstream structure becomes invalid.  
+- **Frame decoding would fail completely.**
+
+Therefore, the receiver **must demodulate exactly 48 symbols per OFDM symbol** to remain compliant with IEEE 802.11a/g/p.
+
+---
+### What is the actual process of digital demodulation?
+
+#### **Input**
+A vector of **48 complex constellation points**, already equalized and phase-corrected.
+
+#### **Output**
+A vector of **soft bits** — floating-point values representing the likelihood of each bit being 0 or 1.
+
+#### **How the Conversion Works**
+
+1. Each constellation point is compared to the ideal constellation positions defined by the modulation scheme  
+   (e.g., BPSK, QPSK, 16-QAM, 64-QAM).
+
+2. The distance between the received point and each ideal point determines the probability of the bit values.
+
+3. For each constellation point:
+   - **BPSK → 1 soft bit**  
+   - **QPSK → 2 soft bits**  
+   - **16-QAM → 4 soft bits**  
+   - **64-QAM → 6 soft bits**
+
+Soft bits are used because **Viterbi decoding performs better with likelihood metrics** rather than hard 0/1 decisions.
+
+---
+### Understanding De-interleaving
+
+De-interleaving is the reversal of the transmitter’s interleaving process.
+
+Before reaching this stage, the receiver has already recovered the 48 data subcarriers for each OFDM symbol and corrected for frequency, timing, phase, and channel effects.  
+However, the bits coming from demodulation **are not yet in their original order**, because 802.11 applies *interleaving* before transmission.
+
+### **Why Interleaving Exists**
+
+Interleaving is used to protect the transmission against **burst errors**.  
+In a wireless channel, noise or fading often affects *several consecutive bits* at once.
+
+If these bits stayed together inside the same codeword:
+
+- a single fade could corrupt multiple bits of the same word,  
+- exceeding the error-correction capability of the convolutional code,  
+- making the codeword impossible to decode.
+
+To avoid this problem, interleaving **spreads consecutive bits across different codewords and different subcarriers**.
+
+This means:
+
+> Instead of having multiple errors concentrated in one codeword, the errors are *distributed* across several codewords, where each codeword only receives a small number of errors — a number the Viterbi decoder can correct.
+
+### **What De-interleaving Does**
+
+At the receiver:
+
+- The **inverse permutation** is applied to restore the original bit ordering.
+- This operation depends on the selected **Modulation and Coding Scheme (MCS)**.
+- Once de-interleaved, the bits are again grouped in their correct sequence for input to the convolutional decoder.
+
+Correct de-interleaving is essential because:
+
+- The Viterbi decoder expects bits in a very precise order.
+- If bits are fed in scrambled form, the convolutional code structure breaks, and decoding fails.
+
+---
+### Understanding Descrambling
+
+#### **Why scrambling exists**
+A pseudo-random scrambler is used in IEEE 802.11 to prevent long sequences of identical bits.  
+Such sequences would negatively impact:
+- synchronization,
+- clock recovery,
+- and spectral efficiency.
+
+Scrambling ensures that the transmitted bitstream appears statistically random, even if the payload contains repeated patterns.
+
+#### **How descrambling works**
+The receiver implements the same **7-bit Linear Feedback Shift Register (LFSR)** used by the transmitter.  
+To correctly descramble the bitstream, the receiver must determine the **initial state** of the scrambler.
+
+#### **How the receiver deduces the scrambler state**
+The receiver can recover the scrambler seed because of a key property of the IEEE 802.11 PHY:
+
+- The first **7 bits of the SERVICE field** are **always zero**.
+- After convolutional decoding, these bits appear at the start of the payload.
+- The receiver compares these 7 bits against a lookup table of possible LFSR outputs.
+- This allows the receiver to infer the **initial scrambler state** used by the transmitter.
+- Once the correct seed is known, the receiver generates the same pseudo-random sequence and **XORs** it with the received bits to recover the original payload.
+
+#### **Which field is used?**
+- **SERVICE field (bits 0–6)**  
+  These bits are always zero and are specifically used to deduce the scrambler's initial state.
+
+---
+
