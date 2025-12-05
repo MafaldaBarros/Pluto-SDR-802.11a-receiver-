@@ -102,10 +102,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 - [PlutoSDR Documentation](https://wiki.analog.com/university/tools/pluto)
 - [802.11 Frame Format](https://en.wikipedia.org/wiki/802.11_Frame_Types)
 
-## Contact
-
-For questions or support, please open an issue on GitHub or contact [your-email@example.com]
-
 ---
 
 **Note:** This tool is intended for educational and research purposes. Always ensure compliance with local regulations regarding RF monitoring and spectrum usage.
