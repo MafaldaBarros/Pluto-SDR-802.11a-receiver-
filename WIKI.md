@@ -189,7 +189,62 @@ The threshold defines how “clear” the repetition must be to consider it a fr
   ( in wiki )
   
  # 📡 IEEE 802.11a OFDM Receiver – Week 4 Notes
- WIKI - MODLEE
+## 1. How is symbol alignment done (algorithm logic)?
+
+Symbol alignment is performed using the Long Training Sequence (LTS), which is a known 64-sample pattern repeated 2.5 times in the IEEE 802.11 preamble.
+The receiver computes a matched filter (correlation) between the incoming samples and the known 64-sample LTS pattern:
+
+\( NP = argmax_3 \sum_{k=0}^{63} s[n+k] * \overline{LT[k])} \)
+
+This correlation produces several sharp peaks. The block selects the three largest peaks, since the LTS contains 2.5 repetitions. 
+
+LTS = [64 samples] [64 samples] [half 64 samples], ilustrated in figure 1 (G12,T0,T1).
+The last peak corresponds to the start of the final LTS symbol.
+
+The indices of the three peaks, NP = [n1, n2, n3] are calculated by: 
+
+\( NP = argmax_3 \sum_{k=0}^{63} s[n+k] * \overline{LT[k])} \)
+Once this index is known, the receiver knows the exact position of the first OFDM data symbol. Each symbol is then extracted by removing the 16-sample cyclic prefix (CP) and keeping the next 64 samples for the FFT, as showed in figure 1 in OFDM Symbols section.
+
+<img width="1147" height="191" alt="image" src="https://github.com/user-attachments/assets/3cffa6a8-42be-459a-b608-db291c35dc40" />
+
+## 2. Why is matched filtering used for symbol alignment but not for frame detection?
+
+- Frame detection uses the Short Training Sequence (STS), which consists of 10 repetitions of a 16-sample pattern. Because this sequence is highly repetitive, autocorrelation is enough to detect it reliably. Autocorrelation is also much cheaper computationally, which is necessary since frame detection must run at the full sample rate (10–20 Msps).
+
+- Symbol alignment, in contrast, must be extremely precise. The 64-sample LTS has a unique structure that produces narrow, unambiguous peaks when matched filtering is applied. Autocorrelation does not provide the required timing accuracy for FFT alignment.
+
+## 3.Code implementing equation (6)
+
+\(NP = argmax_3 over n of sum_{k=0}^{63} s[n+k] * LT[k])\
+
+In the implementation, this appears as a sliding correlation window. For each sample index n, the block multiplies the next 64 received samples by the conjugate of the LTS and sums the result.
+The three largest correlation peaks are stored in NP, corresponding to the repeated LTS symbols.
+
+## 4.Why is 64 added in expression (7)?
+
+nP = max(NP) + 64
+
+Max(NP) is the start of the last LTS symbol.
+Each LTS symbol is exactly 64 samples long.
+
+Adding 64 moves the index from:
+
+- the start of the final LTS, to -> the start of the first OFDM data symbol (as showed in figure 1)
+
+## 5.What does the Stream to Vector block do?
+
+The Stream to Vector block converts a continuous stream of samples into fixed-size vectors. In the context of Section 2.4, after the symbol alignment stage determines the exact start of each OFDM symbol, the receiver groups samples into vectors of length 64, which correspond to the FFT input.
+
+Why this block is needed?
+The FFT block in GNU Radio does not operate on streams.
+It requires vectors of exactly N samples (here, N = 64 data samples per OFDM symbol).
+
+references: [1]  E. Sourour, H. El-Ghoroury, and D. McNeill.
+Frequency Offset Estimation and Correction in the
+IEEE 802.11a WLAN. In IEEE VTC2004-Fall, pages
+4923–4927, Los Angeles, CA, September 2004. IEEE.
+
 
  # 📡 IEEE 802.11a OFDM Receiver – Week 5 
  
