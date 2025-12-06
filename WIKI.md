@@ -223,7 +223,9 @@ If the delay is modified:
 
 Symbol alignment is performed using the Long Training Sequence (LTS), which is a known 64-sample pattern repeated 2.5 times in the IEEE 802.11 preamble. The receiver computes a matched filter (correlation) between the incoming samples and the known 64-sample LTS pattern:
 
-$$NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)$$
+$$
+NP = argmax_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)
+$$
 
 This correlation produces several sharp peaks. The block selects the three largest peaks, since the LTS contains 2.5 repetitions.
 
@@ -231,8 +233,9 @@ LTS = [64 samples] [64 samples] [half 64 samples], illustrated in figure 1 (G12,
 
 The indices of the three peaks, NP = [n1, n2, n3] are calculated by:
 
-
-$$NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)$$
+$$
+NP = argmax_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)
+$$
 
 Once this index is known, the receiver knows the exact position of the first OFDM data symbol. Each symbol is then extracted by removing the 16-sample cyclic prefix (CP) and keeping the next 64 samples for the FFT, as showed in figure 1 in OFDM Symbols section.
 
@@ -244,9 +247,11 @@ Once this index is known, the receiver knows the exact position of the first OFD
 
 - Symbol alignment, in contrast, must be extremely precise. The 64-sample LTS has a unique structure that produces narrow, unambiguous peaks when matched filtering is applied. Autocorrelation does not provide the required timing accuracy for FFT alignment.
 
-## 3.Code implementing equation (6)
-$$NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot LT[k] \right)$$
+## 3. Code implementing equation (6)
 
+$$
+NP = argmax_3 \left( \sum_{k=0}^{63} s[n+k] \cdot LT[k] \right)
+$$
 
 In the implementation, this appears as a sliding correlation window. For each sample index n, the block multiplies the next 64 received samples by the conjugate of the LTS and sums the result.
 The three largest correlation peaks are stored in NP, corresponding to the repeated LTS symbols.
