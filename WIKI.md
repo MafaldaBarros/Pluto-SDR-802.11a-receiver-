@@ -186,7 +186,7 @@ The threshold defines how “clear” the repetition must be to consider it a fr
 
 
 - **Which parameters could you vary?**  
-Averaging window length (N_short):  Controls how many samples are used for the sum, \( s[n] \cdot \overline{s[n+16]} \)
+Averaging window length (N_short):  Controls how many samples are used for the sum, $$s[n] \cdot \overline{s[n+16]}$$
     - Smaller window → faster reaction, more sensitive to noise.
 
 Peak detection thresholds
@@ -198,7 +198,7 @@ Why is there a delayed input? Could you change that value and what would the imp
 Why the delayed input exists?
 The frequency offset estimator requires multiplying a sample with another sample 16 positions later:
 
-\( df = \frac{1}{16} \, \arg \left( \sum_{n=0}^{N_{\text{short}}-1-16} s[n] \, \overline{s[n+16]} \right)\)
+$$df = \frac{1}{16} \, \arg \left( \sum_{n=0}^{N_{\text{short}}-1-16} s[n] \, \overline{s[n+16]} \right)$$
 
 This requires a delay line of exactly 16 samples inside the block.
 Additionally, symbol alignment requires buffering 64 samples to perform matched filtering with the long training sequence.
@@ -221,19 +221,18 @@ If the delay is modified:
  # 📡 IEEE 802.11a OFDM Receiver – Week 4 Notes
 ## 1. How is symbol alignment done (algorithm logic)?
 
-Symbol alignment is performed using the Long Training Sequence (LTS), which is a known 64-sample pattern repeated 2.5 times in the IEEE 802.11 preamble.
-The receiver computes a matched filter (correlation) between the incoming samples and the known 64-sample LTS pattern:
+Symbol alignment is performed using the Long Training Sequence (LTS), which is a known 64-sample pattern repeated 2.5 times in the IEEE 802.11 preamble. The receiver computes a matched filter (correlation) between the incoming samples and the known 64-sample LTS pattern:
 
-\[NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)\]
+$$NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)$$
 
-This correlation produces several sharp peaks. The block selects the three largest peaks, since the LTS contains 2.5 repetitions. 
+This correlation produces several sharp peaks. The block selects the three largest peaks, since the LTS contains 2.5 repetitions.
 
-LTS = [64 samples] [64 samples] [half 64 samples], ilustrated in figure 1 (G12,T0,T1).
-The last peak corresponds to the start of the final LTS symbol.
+LTS = [64 samples] [64 samples] [half 64 samples], illustrated in figure 1 (G12,T0,T1). The last peak corresponds to the start of the final LTS symbol.
 
-The indices of the three peaks, NP = [n1, n2, n3] are calculated by: 
+The indices of the three peaks, NP = [n1, n2, n3] are calculated by:
 
-\[NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)\]
+
+$$NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)$$
 
 Once this index is known, the receiver knows the exact position of the first OFDM data symbol. Each symbol is then extracted by removing the 16-sample cyclic prefix (CP) and keeping the next 64 samples for the FFT, as showed in figure 1 in OFDM Symbols section.
 
@@ -246,7 +245,7 @@ Once this index is known, the receiver knows the exact position of the first OFD
 - Symbol alignment, in contrast, must be extremely precise. The 64-sample LTS has a unique structure that produces narrow, unambiguous peaks when matched filtering is applied. Autocorrelation does not provide the required timing accuracy for FFT alignment.
 
 ## 3.Code implementing equation (6)
-\[NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot LT[k] \right)\]
+$$NP = \operatorname{argmax}_3 \left( \sum_{k=0}^{63} s[n+k] \cdot LT[k] \right)$$
 
 
 In the implementation, this appears as a sliding correlation window. For each sample index n, the block multiplies the next 64 received samples by the conjugate of the LTS and sums the result.
