@@ -6,20 +6,24 @@ Check the wiki pages for weekly updates! [Wiki](https://github.com/MafaldaBarros
 Class T01
 Group 02
 
-# 📡 IEEE 802.11a OFDM Receiver – Week 1 Notes
+#  Week 1 Notes - IEEE 802.11a/g OFDM Receiver
+The primary objective of this project is to implement an OFDM receiver for the IEEE 802.11a protocol using the ADALM Pluto SDR by Analog Devices. More information about the hardware can be found here. The code for this project is made using GNU Radio Companion, a popular open source platform with a variety of signal processing tools for software-defined radios.
 
-This document summarizes the initial study of the article  
-*“An IEEE 802.11a/g/p OFDM Receiver for GNU Radio”* (Bloessl et al., 2013)  
-and answers the Week 1 questions from the project guide.  
+In order to ultimately implement this receiver, we started by studying some core OFDM concepts and IEEE 802.11a specifications. Most of the research was based on the article “An IEEE 802.11a/g/p OFDM Receiver for GNU Radio”, in which the authors explain in detail how to implement a receiver chain using the GNU Radio Companion software.
+In this page, we describe what we learned during the first week of the project.
 
 ---
 
-## 🔎 1. IEEE 802.11a OFDM – Key Parameters
+## 1. IEEE 802.11a OFDM – Key Parameters
+
+First, we need to understand the key parameters of the protocol and how this communication system is structured.
+
+To clarify, IEEE 802.11a operates in the 5 GHz band, while the IEEE 802.11g standard operates in the 2.4 GHz band. Our goal is to be able to detect frames being sent in both bands. Other than this, the OFDM physical layer parameters are essentially the same:
 
 | Parameter                  | Value                | Notes                                  |
 |----------------------------|----------------------|----------------------------------------|
 | Channel bandwidth          | 20 MHz              |                                         |
-| Sub-carrier spacing        | 312.5 kHz           |                                         |
+| Sub-carrier spacing        | 312.5 kHz           |  20 MHz / 64                                       |
 | Total sub-carriers (FFT)   | 64                  |                                         |
 | Data sub-carriers          | 48                  |                                         |
 | Pilot sub-carriers         | 4                   |                                         |
@@ -29,18 +33,43 @@ and answers the Week 1 questions from the project guide.
 | Cyclic prefix duration     | 0.8 µs              | 16 samples                              |
 | OFDM symbol length         | 4 µs (80 samples)   | 64 useful + 16 CP                       |
 
+It is important to note that when 802.11 was standardized, in the early 2000s, computational power was much more limited than it is today. That being said, for this type of communication system, a 64-point FFT was chosen as a good tradeoff - small enough to be practical in terms of computational power and large enough to be effective for communication. In the IEEE 802.11 OFDM physical layer, not all 64 FFT subcarriers are used for data transmission; only 48 carry data, 4 are pilots, and the remaining 12 (guard bands + DC) are unused.
+This design choice serves three key purposes:
+
+  - First, the outer subcarriers are nulled to satisfy the spectral mask requirements, reducing out-of-band emissions and preventing interference with adjacent channels. 
+  - Second, the central DC subcarrier is always deactivated because hardware impairments such as DC offset and local oscillator leakage introduce severe distortion at zero frequency.
+  - Third, the presence of guard subcarriers improves synchronization robustness, noise estimation, and phase-tracking performance.
+
+The article explicitly reflects this behavior, noting that the equalization block “removes DC, guard and pilot subcarriers,” leaving only the 48 data subcarriers for decoding.
+
+Although this varies according to the region (Europe, US, Japan, etc.), the 2.4 GHz band IEEE 802.11g usually spans from 2.402 GHz to 2.483 GHz, giving us approximately 80 MHz of bandwidth. The channels are laid out as follows:
+<img width="856" height="230" alt="image" src="https://github.com/user-attachments/assets/8dd459a3-e20e-4d66-9e88-f0c6635251e7" />
+
+[Source: Cisco - WLAN Radio Frequency Design Considerations](url)
+
+Since the center frequencies of each channel are spaced only 5 MHz from each other, while the channel bandwidth spans 20 MHz, this creates a channel overlap problem. Thus, channels 1, 6, and 11 are usually used in WiFi deployments to minimize interference, since they don't overlap. IEEE 802.11a has way more non-overlapping channel since the band it operates on has roughly 500 MHz.
+
+In terms of modulations and data rates, both standards can transmit in the following modes:
+
+  - 6, 9 Mbps (BPSK)
+  - 12, 18 Mbps (QPSK)
+  - 24, 36 Mbps (16-QAM)
+  - 48, 54 Mbps (64-QAM)
+
 **Training sequences (frame prefix):**
 - **Short Training Sequence (STS):** 16-sample pattern repeated 10× → used for frame detection and coarse frequency offset correction.
 - **Long Training Sequence (LTS):** 64-sample pattern repeated 2.5× → used for symbol alignment and channel estimation.
 
 ---
-## 📖 Q2. Read Section 2.1 and understand what it means  
-**Where are the mentioned tags?**
+## 2. Section 2.1 - Overview
+Reading through Section 2.1 of the mentioned article, it is important to understand:
 
-- **Stream tagging:** used to annotate the incoming sample stream with metadata such as:  
+Where are the mentioned tags?
+
+- **Stream tagging:** Stream tagging: used to annotate the incoming sample stream with metadata (sampling frequency, carrier frequency, or timestamps) such as: 
   - start of frame  
   - frame length  
-  - modulation and coding scheme (MCS)  
+  - Modulation and Coding Scheme (MCS)  
 - These tags allow the downstream blocks to know *where a frame begins, how long it is, and how to decode it*.  
 
 - **Message passing:**  
@@ -48,14 +77,14 @@ and answers the Week 1 questions from the project guide.
   - Makes it easier to handle MAC frames once they are extracted from the stream.  
 
 - **VOLK (Vector Optimized Library of Kernels):**  
-  - Uses SIMD instructions to speed up operations at high sampling rates (10–20 Msps).  
+  - Uses SIMD (Single Instruction Multiple Data)  instructions to speed up operations at high sampling rates (10–20 Msps).  
   - Provides portable and optimized performance across different CPUs.  
 
 ---
 
-## 🧮 Q3. Work through Section 2.2  
+## 3. Section 2.2 - Frame Detection
 **a) Identify the blocks that calculate the autocorrelation**  
-- The autocorrelation is computed using the repeated structure of the STS (every 16 samples).  
+- The autocorrelation is computed using the repeated structure of the STS (short training sequence - every 16 samples).  
 - Implemented with a summation block:
 ```math   
   a[n] = \sum_{k=0}^{N_{win}-1} s[n+k] \cdot s[n+k+16]^* 
@@ -72,7 +101,15 @@ and answers the Week 1 questions from the project guide.
 ```math  
     c[n] = \frac{|a[n]|}{p[n]}  
 ```
-- A plateau in `c[n]` corresponds to the presence of the STS → this indicates the start of a frame.  
+- A plateau in `c[n]` corresponds to the presence of the STS,  indicating the start of a frame.
+
+With this knowledge, we implemented this part of the receiver chain in GNU Radio Companion and plotted the autocorrelation output:
+
+<img width="1363" height="678" alt="image" src="https://github.com/user-attachments/assets/b6203363-0172-48a8-ad0c-4380aa66ae77" />
+
+<img width="1368" height="784" alt="image" src="https://github.com/user-attachments/assets/c7553e30-9e0f-4f98-bb78-0f612a5e9293" />
+
+Using the recordings available on Moodle, we were able to briefly see what appears to be a plateau as seen in the article.
 
 **d) Explore the effect of varying Nwin**  
 - Small `Nwin`:  
@@ -80,48 +117,32 @@ and answers the Week 1 questions from the project guide.
 - Large `Nwin`:  
   - Smoother, more robust detection, but introduces delay.  
 - The paper reports **Nwin = 48** as a good trade-off.  
-
 ---
+# Week 2 Notes - IEEE 802.11a OFDM Receiver
 
-## 📝 Additional Analysis of the Paper
-
-- **Strengths:**  
-  - First open-source 802.11a/g/p receiver in GNU Radio.  
-  - Modular, reproducible, interoperable with commercial Wi-Fi NICs and DSRC devices.  
-  - Comparable performance (PDR) to consumer hardware.  
-
-- **Limitations:**  
-  - Fixed number of samples forwarded after detection → CTS frames may be missed.  
-  - Limited to BPSK/QPSK (channel equalization not sufficient for 16-QAM/64-QAM).  
-  - Not yet optimized for high Doppler vehicular scenarios.  
-
-- **Impact:**  
-  - Shows that **GNU Radio + USRP** can serve as a low-cost experimental platform for Wi-Fi and vehicular networks research.  
-  - Opens the door to reproducible PHY/MAC experiments in academia.  
-
----
-# 📡 IEEE 802.11a OFDM Receiver – Week 2 Notes
-
+This week, we continued studying the proposed receiver chain, understanding the necessary blocks for its implementation in GNU Radio. To add to the previously shown block diagram, we need the OFDM Sync Short block.
 ## Understand the OFDM Sync Short block
 
 - The OFDM Sync Short block performs frame detection.
-- It decides when a Wi-fi (802.11a) frame starts.
-
+- It decides when an OFDM frame starts.
 - It does this by detecting the short training sequence at the beginning of every OFDM frame.
-- The short preamble consists of a 16-sample pattern repeated 10 times → this repetition makes the autocorrelation high during this section.
+- The short preamble consists of a 16-sample pattern repeated 10 times → This repetition makes the autocorrelation high during this section.
 
 ## What the Block Actually Does
 
--It receives: 
+-It receives (as described in the article *):  
 - The raw complex samples s[n]; 
 - The normalized autocorrelation coefficient c[n];
 
--It:
+**Important**: In the new versions of the gr-ieee802-11, this block has been renamed to WiFi Sync Short, where a new input port (abs) was implemented. This is connected to the output of the moving average block (the autocorrelation). By having the complex value of the autocorrelation, the block uses the phase to estimate the sampling frequency offset for correction.
+
+-The block:
 
 1. **Monitors** the value of `c[n]` to detect the presence of the short training sequence.
 2. **Confirms the start of a frame** when `c[n]` remains above the threshold for **≥ 3 consecutive samples**, ensuring the detection is stable and not triggered by noise.
-3. **Opens a “valve”** and forwards a fixed number of samples to the subsequent blocks in the receive chain.
+3. Forwards a fixed number of samples to the subsequent blocks in the receive chain if the autocorrelation is above a configurable threshold.
 4. **If no plateau is detected**, all incoming samples are **discarded**.
+
 -This block does not perform any decoding. Its sole function is to detect the start of a frame and forward the corresponding samples to the next processing stages.
 
 ## Meaning of the Threshold
@@ -167,7 +188,7 @@ The threshold defines how “clear” the repetition must be to consider it a fr
 
 
 ---
-# 📡 IEEE 802.11a OFDM Receiver – Week 3 Notes
+#  Week 3 - IEEE 802.11a OFDM Receiver
 
 ## Understand the OFDM Sync Long block
 
@@ -196,7 +217,7 @@ Peak detection thresholds
 Why is there a delayed input? Could you change that value and what would the impact be of doing that?
 
 Why the delayed input exists?
-The frequency offset estimator requires multiplying a sample with another sample 16 positions later:
+The frequency offset estimator requires multiplying a sample with another sample **16 positions later**:
 
 $$df = \frac{1}{16} \, \arg \left( \sum_{n=0}^{N_{\text{short}}-1-16} s[n] \, \overline{s[n+16]} \right)$$
 
@@ -204,7 +225,7 @@ This requires a delay line of exactly 16 samples inside the block.
 Additionally, symbol alignment requires buffering 64 samples to perform matched filtering with the long training sequence.
 
 #### Can you change the delay?
-You can change it in code, but the algorithm depends on the exact periodicity of the OFDM preamble.
+You can change it in code, but the algorithm depends on the **exact periodicity** of the OFDM preamble.
 Changing the delay breaks the core assumption that the short training sequence repeats every 16 samples.
 
 Impact of changing the delay
@@ -218,18 +239,20 @@ If the delay is modified:
 - The receiver fails to decode frames (PDR approaches zero).
 
   
- # 📡 IEEE 802.11a OFDM Receiver – Week 4 Notes
+ #  Week 4 - IEEE 802.11a OFDM Receiver
 ## 1. How is symbol alignment done (algorithm logic)?
 
-Symbol alignment is performed using the Long Training Sequence (LTS), which is a known 64-sample pattern repeated 2.5 times in the IEEE 802.11 preamble. The receiver computes a matched filter (correlation) between the incoming samples and the known 64-sample LTS pattern:
+Symbol alignment is performed using the Long Training Sequence (LTS), which is a known 64-sample pattern repeated 2.5 times in the IEEE 802.11 preamble. The receiver computes a **matched filter** (correlation) between the incoming samples and the known 64-sample LTS pattern:
 
 $$
 NP = argmax_3 \left( \sum_{k=0}^{63} s[n+k] \cdot \overline{LT[k]} \right)
 $$
 
-This correlation produces several sharp peaks. The block selects the three largest peaks, since the LTS contains 2.5 repetitions.
+This correlation produces several sharp peaks. The block selects the **three largest peaks**, since the LTS contains 2.5 repetitions.
 
-LTS = [64 samples] [64 samples] [half 64 samples], illustrated in figure 1 (G12,T0,T1). The last peak corresponds to the start of the final LTS symbol.
+  - LTS = [64 samples] [64 samples] [half 64 samples], illustrated in figure 1 (G12,T0,T1).
+
+The **last peak** corresponds to the **start of the final LTS symbol**.
 
 The indices of the three peaks, NP = [n1, n2, n3] are calculated by:
 
@@ -243,9 +266,9 @@ Once this index is known, the receiver knows the exact position of the first OFD
 
 ## 2. Why is matched filtering used for symbol alignment but not for frame detection?
 
-- Frame detection uses the Short Training Sequence (STS), which consists of 10 repetitions of a 16-sample pattern. Because this sequence is highly repetitive, autocorrelation is enough to detect it reliably. Autocorrelation is also much cheaper computationally, which is necessary since frame detection must run at the full sample rate (10–20 Msps).
+- Frame detection uses the **Short Training Sequence (STS)**, which consists of 10 repetitions of a 16-sample pattern. Because this sequence is highly repetitive, **autocorrelation** is enough to detect it reliably. Autocorrelation is also much cheaper computationally, which is necessary since frame detection must run at the full sample rate (10–20 Msps).
 
-- Symbol alignment, in contrast, must be extremely precise. The 64-sample LTS has a unique structure that produces narrow, unambiguous peaks when matched filtering is applied. Autocorrelation does not provide the required timing accuracy for FFT alignment.
+- Symbol alignment, in contrast, must be **extremely precise**. The 64-sample LTS has a unique structure that produces narrow, unambiguous peaks when matched filtering is applied. Autocorrelation does not provide the required timing accuracy for FFT alignment.
 
 ## 3. Code implementing equation (6)
 
@@ -258,22 +281,22 @@ The three largest correlation peaks are stored in NP, corresponding to the repea
 
 ## 4.Why is 64 added in expression (7)?
 
-nP = max(NP) + 64
+**nP = max(NP) + 64**
 
-Max(NP) is the start of the last LTS symbol.
-Each LTS symbol is exactly 64 samples long.
+Max(NP) is the **start** of the last LTS symbol.
+Each LTS symbol is exactly **64 samples long**.
 
 Adding 64 moves the index from:
 
-- the start of the final LTS, to -> the start of the first OFDM data symbol (as showed in figure 1)
+- the **start of the final LTS**, to -> the **start of the first OFDM data symbol** (as showed in figure 1)
 
 ## 5.What does the Stream to Vector block do?
 
-The Stream to Vector block converts a continuous stream of samples into fixed-size vectors. In the context of Section 2.4, after the symbol alignment stage determines the exact start of each OFDM symbol, the receiver groups samples into vectors of length 64, which correspond to the FFT input.
+The **Stream to Vector** block converts a continuous stream of samples into fixed-size vectors. In the context of Section 2.4, after the symbol alignment stage determines the exact start of each OFDM symbol, the receiver groups samples into **vectors of length 64**, which correspond to the FFT input.
 
 Why this block is needed?
-The FFT block in GNU Radio does not operate on streams.
-It requires vectors of exactly N samples (here, N = 64 data samples per OFDM symbol).
+The FFT block in GNU Radio **does not operate on streams**.
+It requires **vectors of exactly N samples** (here, N = 64 data samples per OFDM symbol).
 
 references: [1]  E. Sourour, H. El-Ghoroury, and D. McNeill.
 Frequency Offset Estimation and Correction in the
@@ -281,7 +304,7 @@ IEEE 802.11a WLAN. In IEEE VTC2004-Fall, pages
 4923–4927, Los Angeles, CA, September 2004. IEEE.
 
 
- # 📡 IEEE 802.11a OFDM Receiver – Week 5 
+ # Week 5 - IEEE 802.11a OFDM Receiver
  
 ## Understand Phase Offset Correction (Section 2.5)
 
@@ -341,17 +364,17 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 - This precisely removes the accumulated phase error across all 48 data subcarriers.
 - After correction, the constellation points lie again on the expected positions, enabling correct demodulation
 
-   # 📡 IEEE 802.11a OFDM Receiver – Week 6
+   # Week 6 - IEEE 802.11a OFDM Receiver
 
 ## Understand the OFDM Equalize Symbols module 
 ### What does it do?
 
 -The OFDM Equalize Symbols block is the first block operating in the frequency domain after the FFT. It performs the following functions:
-1. Phase offset correction using the four pilot subcarriers.
-2.Channel magnitude correction (simple equalization based on a sinc-shaped assumption).
-3. Removal of DC, guard, and pilot subcarriers.
-4. Extraction of the 48 data subcarriers from the 64-point FFT output.
-5. Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
+  1. Phase offset correction using the four pilot subcarriers.
+  2.Channel magnitude correction (simple equalization based on a sinc-shaped assumption).
+  3. Removal of DC, guard, and pilot subcarriers.
+  4. Extraction of the 48 data subcarriers from the 64-point FFT output.
+  5. Preparation of clean frequency-domain symbols for demodulation in the OFDM Decode Signal block.
 
 - In short, this block “cleans” the FFT output and makes the data symbols ready for decoding.
 
@@ -360,11 +383,8 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 - The limitation comes from the simplified channel equalization used:
 
 - The current implementation assumes a sinc-shaped magnitude response of the subcarriers.
-
 - This approximation is not accurate enough for constellations where amplitude carries important information (e.g., 16-QAM, 64-QAM).
-
 - Incorrect magnitude equalization would distort these constellations and make decoding unreliable.
-
 - BPSK and QPSK depend mostly on phase, so the simplified equalizer works well enough for them.
 - Higher-order QAM requires more advanced channel estimation, which is not implemented.
 
@@ -380,7 +400,7 @@ Therefore, the receiver must estimate and correct this phase offset for every OF
 
  ## Work through Section 2.7
 
-# Section 2.7 — Signal Field Decoding 
+# Section 2.7 — Signal Field Decoding
 # How does an 802.11 frame begin?
 
 An 802.11 OFDM frame always starts in this order:
@@ -393,7 +413,8 @@ An 802.11 OFDM frame always starts in this order:
 So, the SIGNAL field is the first symbol that tells the receiver how to read the rest of the frame.
 
 # How do you delimit a frame? (Remembering Computer Networks)
-INCOMPLETE 
+
+<img width="722" height="296" alt="image" src="https://github.com/user-attachments/assets/340e3b06-1680-4e18-8e8d-66bac3b1a588" />
 
 # What is the Signal Field?
 
@@ -412,7 +433,6 @@ The Signal Field contains:
 - **1 parity bit** → quick correctness check  
 - **6 tail bits** → flushes the convolutional decoder  
 
-
 # Why is this necessary?
 
 The receiver cannot decode the payload unless it knows:
@@ -421,9 +441,7 @@ The receiver cannot decode the payload unless it knows:
 - the coding rate  
 - the total payload length  
 
-The SIGNAL field conveys the essential PHY-layer transmission parameters —  
-namely the modulation scheme, convolutional coding rate, and PSDU length —  
-allowing the physical layer to correctly configure its demodulation and decoding pipelines  
+The SIGNAL field conveys the essential PHY-layer transmission parameters (namely the modulation scheme, convolutional coding rate, and PSDU length) allowing the physical layer to correctly configure its demodulation and decoding pipelines  
 for the subsequent OFDM data symbols.
 
 
@@ -443,7 +461,7 @@ Then:
 4. Mapped onto a single OFDM symbol (48 data subcarriers)
 
 
-   # 📡 IEEE 802.11a OFDM Receiver – Week 7
+   #  Week 7 - IEEE 802.11a OFDM Receiver
 
 ## Work through decoding the payload (Section 2.8)
 
@@ -461,7 +479,7 @@ According to Section 2.8 of the article, the *OFDM Decode MAC* module contains t
 - Reverses the bit permutations applied at the transmitter, according to the **Modulation and Coding Scheme (MCS)**.
 
 #### **Convolutional Decoder + Puncturing Handler**
-- Performs **Viterbi decoding** (using the IT++ library) to correct channel errors and reconstruct punctured bits.
+- Removes redundant bits due to convolutional encoding on the transmitter side, allowing different code rates on the same transmission.
 
 #### **Descrambler**
 - Uses the first **seven bits of the SERVICE field** (which are always zero) to determine the scrambler's initial state and remove the scrambling sequence.
@@ -475,29 +493,22 @@ The block demodulates **48 constellation symbols at once**, because each OFDM sy
 
 - 64 total subcarriers  
   Subtracting:
-  - 4 pilot carriers  
-  - 1 DC carrier  
-  - 11 guard/null carriers  
+    - 4 pilot carriers  
+    - 1 DC carrier  
+    - 11 guard/null carriers  
 
-→ leaves **48 data subcarriers**, each carrying one constellation point.
-
+→ leaves **48 data subcarriers**, each carrying **one constellation point**. (BPSK or QPSK)
 This number is **defined by the IEEE 802.11a/g/p standard**, so it cannot be freely changed.
-
 
 #### Can this be changed?
 
-Technically yes, one could modify the GNU Radio implementation.  
-However, doing so would **break compliance with the 802.11 standard**, and the receiver would no longer correctly interpret WiFi frames.
+Yes, this can be changed. One can have multiple constellation points per subcarrier (QAM).
 
 #### Impact of changing the number of demodulated carriers
 
-- Demodulation would no longer match the transmitter's OFDM structure.  
-- De-interleaving and Viterbi decoding would receive the wrong number of bits.  
-- Descrambling would fail since the bitstream structure becomes invalid.  
-- **Frame decoding would fail completely.**
-
-Therefore, the receiver **must demodulate exactly 48 symbols per OFDM symbol** to remain compliant with IEEE 802.11a/g/p.
-
+- We can send more data
+- The frame decoding is more complex and heavy
+- The probability of error is higher, needing a higher SNR to keep the same FER. 
 ---
 ### What is the actual process of digital demodulation?
 
@@ -545,7 +556,7 @@ To avoid this problem, interleaving **spreads consecutive bits across different 
 
 This means:
 
-> Instead of having multiple errors concentrated in one codeword, the errors are *distributed* across several codewords, where each codeword only receives a small number of errors — a number the Viterbi decoder can correct.
+> Instead of having multiple errors concentrated in one codeword, the errors are *distributed* across several codewords, where each codeword only receives a small number of errors.
 
 ### **What De-interleaving Does**
 
@@ -557,7 +568,6 @@ At the receiver:
 
 Correct de-interleaving is essential because:
 
-- The Viterbi decoder expects bits in a very precise order.
 - If bits are fed in scrambled form, the convolutional code structure breaks, and decoding fails.
 
 ---
@@ -590,4 +600,75 @@ The receiver can recover the scrambler seed because of a key property of the IEE
   These bits are always zero and are specifically used to deduce the scrambler's initial state.
 
 ---
+#### **Decoded frames**
+At this point, we started experimenting with the full receiver chain shown below:
 
+<img width="770" height="435" alt="image" src="https://github.com/user-attachments/assets/2de82c0f-91c2-4489-a436-b5bac955d5b3" />
+
+Using the Message Debug block, we can observe the decoded packets as they arrive in the terminal. For the data source, the recordings available on Moodle were used.
+Below is an example of a packet that was received:
+
+decode_mac :info: encoding: 4 - length: 307 - symbols: 26
+parse_mac :info: length: 303
+***** VERBOSE PDU DEBUG PRINT ******
+((address 3 . 54:8a:ba:17:9e:0c) (address 2 . 54:8a:ba:17:9e:0c) (address 1 . ff:ff:ff:ff:ff:ff) (sequence number . 2424) (ssid . raspberrypi) (subtype . Beacon) (type . management) (duration . 0) (dlt . 105) (frame bytes . 307) (encoding . 4) (snr . 22.8954) (nominal frequency . 2.45e+09) (frequency offset . 25875.3) (beta . 2.46072) (csi . #[(0.0280669,0.0416872) (0.04785,0.0407505) (0.057741,0.038741) (0.07745,0.0438908) (0.0822286,0.0513226) (0.0841846,0.0667423) (0.0804586,0.0736604) (0.0725615,0.063261) (0.0585334,0.0662361) (0.0408872,0.053024) (0.0346504,0.0439203) (0.0195954,0.0185439) (0.019837,0.000162425) (0.0151125,-0.0241559) (0.0272753,-0.0559146) (0.0475085,-0.0773479) (0.0715504,-0.0969507) (0.0916895,-0.101854) (0.126404,-0.106131) (0.144398,-0.105959) (0.173585,-0.0840717) (0.18325,-0.0670141) (0.17941,-0.0401931) (0.184233,-0.0176918) (0.187823,0.0028242) (0.173624,0.0289136) (0.12589,0.0622309) (0.103026,0.0633536) (0.0849338,0.062489) (0.063937,0.0534365) (0.0525451,0.0440301) (0.0467674,0.0263795) (0.0445494,0.0265091) (0.0334592,0.0162587) (0.0577812,0.0110455) (0.0525863,0.00947341) (0.0661837,0.0119797) (0.067101,0.0250755) (0.0614101,0.0317764) (0.0695245,0.0345314) (0.0546006,0.0411687) (0.0495476,0.0428713) (0.0418433,0.0498351) (0.0314546,0.0421788) (0.0227848,0.0397646) (0.00903822,0.0238152) (0.0067861,0.0127072) (0.0039367,-0.00542243) (0.00857316,-0.0192193) (0.00968787,-0.028923) (0.0162549,-0.0402511) (0.0175329,-0.0462985)]))
+pdu length =        303 bytes
+pdu vector contents = 
+0000: 80 00 00 00 ff ff ff ff ff ff 54 8a ba 17 9e 0c 
+0010: 54 8a ba 17 9e 0c 80 97 59 31 57 ee f7 0a 00 00 
+0020: 64 00 11 05 00 0b 72 61 73 70 62 65 72 72 79 70 
+0030: 69 01 05 24 b0 48 60 6c 03 01 64 05 04 00 01 00 
+0040: 00 07 3c 50 54 20 24 01 14 28 01 14 2c 01 14 30 
+0050: 01 14 34 01 14 38 01 14 3c 01 14 40 01 14 64 01 
+0060: 1b 68 01 1b 6c 01 1b 70 01 1b 74 01 1b 78 01 1b 
+0070: 7c 01 1b 80 01 1b 84 01 1b 88 01 1b 8c 01 1b 0b 
+0080: 05 12 00 0a 8d 5b 2d 1a 6f 08 03 ff ff 00 00 00 
+0090: 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 
+00a0: 00 00 30 14 01 00 00 0f ac 04 01 00 00 0f ac 04 
+00b0: 01 00 00 0f ac 02 28 00 3d 16 64 05 04 00 00 00 
+00c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+00d0: 7f 08 00 10 00 00 00 00 00 40 bf 0c 32 78 89 33 
+00e0: fa ff 00 00 fa ff 00 00 c0 05 01 6a 00 fc ff c3 
+00f0: 04 02 ca ca ca dd 18 00 50 f2 02 01 01 88 00 03 
+0100: a4 00 00 27 a4 00 00 42 43 5e 00 62 32 2f 00 85 
+0110: 1e 00 00 8f 00 0f 00 ff 03 40 00 46 45 55 50 2e 
+0120: 49 2e 30 33 32 32 30 31 2e 32 00 12 00 00 2c 
+************************************
+
+We can already observe some useful information:
+
+**Network Details**:
+
+  - **SSID:** raspberrypi (bytes at 0x002C: 72 61 73 70 62 65 72 72 79 70 69)
+  - **Device:** Probably a Raspberry Pi acting as an access point
+  - **MAC Address:** 54:8a:ba:17:9e:0c (both source and BSSID)
+  - **Broadcast to:** ff:ff:ff:ff:ff:ff (all devices)
+  
+**Frame Structure Breakdown:**
+
+  - 80 00 = Frame control (Beacon)
+  - 00 00 = Duration
+  - ff ff ff ff ff ff = Destination (broadcast)
+  - 54 8a ba 17 9e 0c = Source/BSSID (Raspberry Pi)
+  - 59 31 57 ee f7 0a = Timestamp
+  - 64 00 = Beacon interval (100 TUs = 102.4ms)
+  - Extra: Looking at the end of the vector contents, we can see the ASCII string 46 45 55 50 2e 49 2e 30 33 32 32 30 31 2e 32 -> FEUP.I.032201.2
+  
+This proves that this chain is indeed capable of successfully detecting and decoding 802.11a frames at 2.45GHz, and we are able to extract useful information.
+
+
+   #  Week 8 - Experimenting with Pluto
+
+At this point, we ran the same program as before, but now using the actual Pluto SDR instead of the recordings.
+
+We created the channel_scanner. This program plots the constellation and displays a drop-down box for selecting the current channel the SDR is scanning.
+
+<img width="482" height="426" alt="image" src="https://github.com/user-attachments/assets/790aa7f4-11fb-4f79-93f3-00feeaf040ba" />
+
+<img width="1044" height="672" alt="image" src="https://github.com/user-attachments/assets/6adcab81-543a-4346-9287-7ff09b7870f4" />
+
+We were able to successfully record various frames in different channels, as seen in the wireshark results. The following were recorded in the 5 GHz band, in Channel 100.
+
+<img width="961" height="551" alt="image" src="https://github.com/user-attachments/assets/1ac338ad-5bbf-4858-862a-31bc7c78cee9" />
+
+We also noticed that sometimes the program needs to be running for quite an amount of time (several minutes) for it to detect any frames.
